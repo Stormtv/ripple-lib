@@ -10,7 +10,7 @@ import {RippleAPI} from '..'
 
 function setTransactionFlags(txJSON: utils.TransactionJSON, values: FormattedSettings) {
   const keys = Object.keys(values)
-  assert(keys.length === 1, 'ERROR: can only set one setting per transaction')
+  assert.ok(keys.length === 1, 'ERROR: can only set one setting per transaction')
   const flagName = keys[0]
   const value = values[flagName]
   const index = AccountFlagIndices[flagName]
@@ -62,7 +62,7 @@ function setTransactionFields(txJSON: utils.TransactionJSON, input: FormattedSet
  */
 
 function convertTransferRate(transferRate: number): number {
-  return (new BigNumber(transferRate)).shift(9).toNumber()
+  return (new BigNumber(transferRate)).shiftedBy(9).toNumber()
 }
 
 function formatSignerEntry(signer: WeightedSigner): object {

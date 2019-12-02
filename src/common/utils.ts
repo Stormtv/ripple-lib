@@ -17,7 +17,7 @@ function dropsToXrp(drops: string | BigNumber): string {
   if (typeof drops === 'string') {
     if (!drops.match(/^-?[0-9]*\.?[0-9]*$/)) {
       throw new ValidationError(`dropsToXrp: invalid value '${drops}',` +
-        ` should be a number matching (^-?[0-9]*\.?[0-9]*$).`)
+        ` should be a number matching (^-?[0-9]*\\.?[0-9]*$).`)
     } else if (drops === '.') {
       throw new ValidationError(`dropsToXrp: invalid value '${drops}',` +
         ` should be a BigNumber or string-encoded number.`)
@@ -51,7 +51,7 @@ function xrpToDrops(xrp: string | BigNumber): string {
   if (typeof xrp === 'string') {
     if (!xrp.match(/^-?[0-9]*\.?[0-9]*$/)) {
       throw new ValidationError(`xrpToDrops: invalid value '${xrp}',` +
-        ` should be a number matching (^-?[0-9]*\.?[0-9]*$).`)
+        ` should be a number matching (^-?[0-9]*\\.?[0-9]*$).`)
     } else if (xrp === '.') {
       throw new ValidationError(`xrpToDrops: invalid value '${xrp}',` +
         ` should be a BigNumber or string-encoded number.`)
@@ -83,7 +83,7 @@ function xrpToDrops(xrp: string | BigNumber): string {
       ` too many decimal places.`)
   }
 
-  return (new BigNumber(xrp)).times(1000000.0).floor().toString(10)
+  return (new BigNumber(xrp)).times(1000000.0).integerValue(BigNumber.ROUND_FLOOR).toString(10)
 }
 
 function toRippledAmount(amount: Amount): RippledAmount {
