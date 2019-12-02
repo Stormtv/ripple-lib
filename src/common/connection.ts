@@ -1,14 +1,14 @@
 import * as _ from 'lodash'
 import {EventEmitter} from 'events'
 import {parse as parseUrl} from 'url'
-import * as WebSocket from 'ws'
+import WebSocket from 'ws'
 import RangeSet from './rangeset'
 import {RippledError, DisconnectedError, NotConnectedError,
   TimeoutError, ResponseFormatError, ConnectionError,
   RippledNotInitializedError} from './errors'
 
 export interface ConnectionOptions {
-  trace?: boolean,
+  trace?: boolean
   proxy?: string
   proxyAuthorization?: string
   authorization?: string
@@ -16,7 +16,8 @@ export interface ConnectionOptions {
   key?: string
   passphrase?: string
   certificate?: string
-  timeout?: number
+  timeout?: number,
+  connectionTimeout?: number
 }
 
 class Connection extends EventEmitter {
@@ -38,11 +39,13 @@ class Connection extends EventEmitter {
   private _availableLedgerVersions = new RangeSet()
   private _nextRequestID: number = 1
   private _retry: number = 0
+  private _connectTimer: null|NodeJS.Timer = null
   private _retryTimer: null|NodeJS.Timer = null
   private _onOpenErrorBound: null| null|((...args: any[]) => void) = null
   private _onUnexpectedCloseBound: null|((...args: any[]) => void) = null
   private _fee_base: null|number = null
   private _fee_ref: null|number = null
+  private _connectionTimeout: number
 
   constructor(url, options: ConnectionOptions = {}) {
     super()
@@ -61,6 +64,7 @@ class Connection extends EventEmitter {
     this._passphrase = options.passphrase
     this._certificate = options.certificate
     this._timeout = options.timeout || (20 * 1000)
+    this._connectionTimeout = options.connectionTimeout || 2000
   }
 
   _updateLedgerVersions(data) {
@@ -179,6 +183,13 @@ class Connection extends EventEmitter {
     }
   }
 
+  _clearConnectTimer() {
+    if (this._connectTimer !== null) {
+      clearTimeout(this._connectTimer)
+      this._connectTimer = null
+    }
+  }
+
   _onOpen() {
     if (!this._ws) {
       return Promise.reject(new DisconnectedError())
@@ -282,8 +293,13 @@ class Connection extends EventEmitter {
   }
 
   connect(): Promise<void> {
+    this._clearConnectTimer()
     this._clearReconnectTimer()
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
+      this._connectTimer = setTimeout(() => {
+          reject(new ConnectionError(`Error: connect() timed out after ${this._connectionTimeout} ms. ` +
+          `If your internet connection is working, the rippled server may be blocked or inaccessible.`))
+      }, this._connectionTimeout)
       if (!this._url) {
         reject(new ConnectionError(
           'Cannot connect because no server was specified'))
@@ -291,7 +307,7 @@ class Connection extends EventEmitter {
       if (this._state === WebSocket.OPEN) {
         resolve()
       } else if (this._state === WebSocket.CONNECTING) {
-        this._ws.once('open', resolve)
+        this._ws.once('open', () => resolve)
       } else {
         this._ws = this._createWebSocket()
         // when an error causes the connection to close, the close event
@@ -311,8 +327,19 @@ class Connection extends EventEmitter {
         this._onUnexpectedCloseBound = this._onUnexpectedClose.bind(this, true,
           resolve, reject)
         this._ws.once('close', this._onUnexpectedCloseBound)
-        this._ws.once('open', () => this._onOpen().then(resolve, reject))
+        this._ws.once('open', () => {
+          return this._onOpen().then(resolve, reject)
+        })
       }
+    })
+    // Once we have a resolution or rejection, clear the timeout timer as no 
+    // longer needed.
+    .then(() => {
+      this._clearConnectTimer()
+    })
+    .catch((err) => {
+      this._clearConnectTimer()
+      throw err;
     })
   }
 
@@ -322,6 +349,7 @@ class Connection extends EventEmitter {
 
   _disconnect(calledByUser): Promise<void> {
     if (calledByUser) {
+      this._clearConnectTimer()
       this._clearReconnectTimer()
       this._retry = 0
     }
@@ -354,6 +382,7 @@ class Connection extends EventEmitter {
 
   _whenReady<T>(promise: Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
+      promise.catch(reject);
       if (!this._shouldBeConnected) {
         reject(new NotConnectedError())
       } else if (this._state === WebSocket.OPEN && this._isReady) {
@@ -456,6 +485,10 @@ class Connection extends EventEmitter {
       this._whenReady(this._send(message)).then(() => {
         const delay = timeout || this._timeout
         timer = setTimeout(() => _reject(new TimeoutError()), delay)
+        // Node.js won't exit if a timer is still running, so we tell Node to ignore (Node will still wait for the request to complete)
+        if (timer.unref) {
+          timer.unref()
+        }
       }).catch(_reject)
     })
   }

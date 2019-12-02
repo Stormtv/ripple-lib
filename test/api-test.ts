@@ -1,28 +1,22 @@
-/* eslint-disable max-nested-callbacks */
-'use strict'; // eslint-disable-line
-const _ = require('lodash');
-const assert = require('assert-diff');
-const setupAPI = require('./setup-api');
-const RippleAPI = require('ripple-api').RippleAPI;
-const validate = RippleAPI._PRIVATE.validate;
-const fixtures = require('./fixtures');
-const requests = fixtures.requests;
-const responses = fixtures.responses;
-const addresses = require('./fixtures/addresses');
-const hashes = require('./fixtures/hashes');
+import assert from 'assert-diff';
+import BigNumber from 'bignumber.js';
+import _ from 'lodash';
+import {RippleAPI} from 'ripple-api';
+import {RecursiveData} from 'ripple-api/ledger/utils';
+import binary from 'ripple-binary-codec';
+import requests from './fixtures/requests';
+import responses from './fixtures/responses';
+import addresses from './fixtures/addresses.json';
+import hashes from './fixtures/hashes.json';
+import ledgerClosed from './fixtures/rippled/ledger-close-newer.json';
+import setupAPI from './setup-api';
+const {validate, schemaValidator} = RippleAPI._PRIVATE;
 const address = addresses.ACCOUNT;
 const utils = RippleAPI._PRIVATE.ledgerUtils;
-const ledgerClosed = require('./fixtures/rippled/ledger-close-newer');
-const schemaValidator = RippleAPI._PRIVATE.schemaValidator;
-const binary = require('ripple-binary-codec');
-const BigNumber = require('bignumber.js');
 assert.options.strict = true;
 
 // how long before each test case times out
 const TIMEOUT = 20000;
-
-function unused() {
-}
 
 function closeLedger(connection) {
   connection._ws.emit('message', JSON.stringify(ledgerClosed));
@@ -37,7 +31,7 @@ function checkResult(expected, schemaName, response) {
     assert(response.tx_json);
     assert.deepEqual(response.tx_json, expected.tx_json);
   }
-  assert.deepEqual(_.omit(response, 'txJSON'), _.omit(expected, 'txJSON'), _.omit(response, 'tx_json'), _.omit(response, 'tx_json'));
+  assert.deepEqual(_.omit(response, ['txJSON', 'tx_json']), _.omit(expected, ['txJSON', 'tx_json']))
   if (schemaName) {
     schemaValidator.schemaValidate(schemaName, response);
   }
@@ -56,110 +50,6 @@ describe('RippleAPI', function () {
     assert.strictEqual(error.inspect(), '[RippleError(mess, { data: 1 })]');
   });
 
-  describe('xrpToDrops', function () {
-    it('works with a typical amount', function () {
-      const drops = this.api.xrpToDrops('2')
-      assert.strictEqual(drops, '2000000', '2 XRP equals 2 million drops')
-    })
-
-    it('works with fractions', function () {
-      let drops = this.api.xrpToDrops('3.456789')
-      assert.strictEqual(drops, '3456789', '3.456789 XRP equals 3,456,789 drops')
-
-      drops = this.api.xrpToDrops('3.400000')
-      assert.strictEqual(drops, '3400000', '3.400000 XRP equals 3,400,000 drops')
-
-      drops = this.api.xrpToDrops('0.000001')
-      assert.strictEqual(drops, '1', '0.000001 XRP equals 1 drop')
-
-      drops = this.api.xrpToDrops('0.0000010')
-      assert.strictEqual(drops, '1', '0.0000010 XRP equals 1 drop')
-    })
-
-    it('works with zero', function () {
-      let drops = this.api.xrpToDrops('0')
-      assert.strictEqual(drops, '0', '0 XRP equals 0 drops')
-
-      // negative zero is equivalent to zero
-      drops = this.api.xrpToDrops('-0')
-      assert.strictEqual(drops, '0', '-0 XRP equals 0 drops')
-
-      drops = this.api.xrpToDrops('0.000000')
-      assert.strictEqual(drops, '0', '0.000000 XRP equals 0 drops')
-
-      drops = this.api.xrpToDrops('0.0000000')
-      assert.strictEqual(drops, '0', '0.0000000 XRP equals 0 drops')
-    })
-
-    it('works with a negative value', function () {
-      const drops = this.api.xrpToDrops('-2')
-      assert.strictEqual(drops, '-2000000', '-2 XRP equals -2 million drops')
-    })
-
-    it('works with a value ending with a decimal point', function () {
-      let drops = this.api.xrpToDrops('2.')
-      assert.strictEqual(drops, '2000000', '2. XRP equals 2000000 drops')
-
-      drops = this.api.xrpToDrops('-2.')
-      assert.strictEqual(drops, '-2000000', '-2. XRP equals -2000000 drops')
-    })
-
-    it('works with BigNumber objects', function () {
-      let drops = this.api.xrpToDrops(new BigNumber(2))
-      assert.strictEqual(drops, '2000000', '(BigNumber) 2 XRP equals 2 million drops')
-
-      drops = this.api.xrpToDrops(new BigNumber(-2))
-      assert.strictEqual(drops, '-2000000', '(BigNumber) -2 XRP equals -2 million drops')
-    })
-
-    it('works with a number', function() {
-      // This is not recommended. Use strings or BigNumber objects to avoid precision errors.
-
-      let drops = this.api.xrpToDrops(2)
-      assert.strictEqual(drops, '2000000', '(number) 2 XRP equals 2 million drops')
-
-      drops = this.api.xrpToDrops(-2)
-      assert.strictEqual(drops, '-2000000', '(number) -2 XRP equals -2 million drops')
-    })
-
-    it('throws with an amount with too many decimal places', function () {
-      assert.throws(() => {
-        this.api.xrpToDrops('1.1234567')
-      }, /has too many decimal places/)
-
-      assert.throws(() => {
-        this.api.xrpToDrops('0.0000001')
-      }, /has too many decimal places/)
-    })
-
-    it('throws with an invalid value', function () {
-      assert.throws(() => {
-        this.api.xrpToDrops('FOO')
-      }, /invalid value/)
-
-      assert.throws(() => {
-        this.api.xrpToDrops('1e-7')
-      }, /invalid value/)
-
-      assert.throws(() => {
-        this.api.xrpToDrops('2,0')
-      }, /invalid value/)
-
-      assert.throws(() => {
-        this.api.xrpToDrops('.')
-      }, /xrpToDrops\: invalid value '\.', should be a BigNumber or string-encoded number\./)
-    })
-
-    it('throws with an amount more than one decimal point', function () {
-      assert.throws(() => {
-        this.api.xrpToDrops('1.0.0')
-      }, /xrpToDrops:\ invalid\ value\ '1\.0\.0'\,\ should\ be\ a\ number\ matching\ \(\^\-\?\[0\-9\]\*\.\?\[0\-9\]\*\$\)\./)
-
-      assert.throws(() => {
-        this.api.xrpToDrops('...')
-      }, /xrpToDrops:\ invalid\ value\ '\.\.\.'\,\ should\ be\ a\ number\ matching\ \(\^\-\?\[0\-9\]\*\.\?\[0\-9\]\*\$\)\./)
-    })
-  })
 
   describe('dropsToXrp', function () {
     it('works with a typical amount', function () {
@@ -261,27 +151,32 @@ describe('RippleAPI', function () {
 
       assert.throws(() => {
         this.api.dropsToXrp('.')
-      }, /dropsToXrp\: invalid value '\.', should be a BigNumber or string-encoded number\./)
+      }, /dropsToXrp: invalid value '\.', should be a BigNumber or string-encoded number\./)
     })
 
     it('throws with an amount more than one decimal point', function () {
       assert.throws(() => {
         this.api.dropsToXrp('1.0.0')
-      }, /dropsToXrp:\ invalid\ value\ '1\.0\.0'\,\ should\ be\ a\ number\ matching\ \(\^\-\?\[0\-9\]\*\.\?\[0\-9\]\*\$\)\./)
+      }, /dropsToXrp: invalid value '1\.0\.0'/)
 
       assert.throws(() => {
         this.api.dropsToXrp('...')
-      }, /dropsToXrp:\ invalid\ value\ '\.\.\.'\,\ should\ be\ a\ number\ matching\ \(\^\-\?\[0\-9\]\*\.\?\[0\-9\]\*\$\)\./)
+      }, /dropsToXrp: invalid value '\.\.\.'/)
     })
   })
+
 
   describe('isValidAddress', function () {
     it('returns true for valid address', function () {
       assert(this.api.isValidAddress('rLczgQHxPhWtjkaQqn3Q6UM8AbRbbRvs5K'));
+      assert(this.api.isValidAddress(addresses.ACCOUNT_X));
+      assert(this.api.isValidAddress(addresses.ACCOUNT_T));
     })
 
     it('returns false for invalid address', function () {
       assert(!this.api.isValidAddress('foobar'));
+      assert(!this.api.isValidAddress(addresses.ACCOUNT_X.slice(0, -1)));
+      assert(!this.api.isValidAddress(addresses.ACCOUNT_T.slice(1)));
     })
   })
 
@@ -311,14 +206,29 @@ describe('RippleAPI', function () {
     it('throws with an invalid secret', function (){
       assert.throws(() => {
         this.api.deriveKeypair('...');
-      }, /^Error\: Non\-base58 character$/)
+      }, /^Error: Non-base58 character$/)
     })
   })
-
+  
   describe('deriveAddress', function () {
     it('returns address for public key', function () {
       var address = this.api.deriveAddress('035332FBA71D705BD5D97014A833BE2BBB25BEFCD3506198E14AFEA241B98C2D06');
       assert.equal(address, 'rLczgQHxPhWtjkaQqn3Q6UM8AbRbbRvs5K');
+    })
+  })
+
+  describe('deriveXAddress', function () {
+    it('returns address for public key', function () {
+      assert.equal(RippleAPI.deriveXAddress({
+        publicKey: '035332FBA71D705BD5D97014A833BE2BBB25BEFCD3506198E14AFEA241B98C2D06',
+        tag: false,
+        test: false
+      }), 'XVZVpQj8YSVpNyiwXYSqvQoQqgBttTxAZwMcuJd4xteQHyt');
+      assert.equal(RippleAPI.deriveXAddress({
+        publicKey: '035332FBA71D705BD5D97014A833BE2BBB25BEFCD3506198E14AFEA241B98C2D06',
+        tag: false,
+        test: true
+      }), 'TVVrSWtmQQssgVcmoMBcFQZKKf56QscyWLKnUyiuZW8ALU4');
     })
   })
 
@@ -996,7 +906,7 @@ describe('RippleAPI', function () {
         done(new Error('Expected method to reject. Prepared transaction: ' + JSON.stringify(response)));
       }).catch(err => {
         assert.strictEqual(err.name, 'ValidationError');
-        assert.strictEqual(err.message, 'instance.Account is not of a type(s) string,instance.Account does not conform to the "address" format');
+        assert.strictEqual(err.message, 'instance.Account is not of a type(s) string,instance.Account is not exactly one from <xAddress>,<classicAddress>');
         done();
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
@@ -1020,7 +930,7 @@ describe('RippleAPI', function () {
         done(new Error('Expected method to reject. Prepared transaction: ' + JSON.stringify(response)));
       }).catch(err => {
         assert.strictEqual(err.name, 'ValidationError');
-        assert.strictEqual(err.message, 'instance.Account does not conform to the "address" format');
+        assert.strictEqual(err.message, 'instance.Account is not exactly one from <xAddress>,<classicAddress>');
         done();
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
@@ -1364,7 +1274,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
 
       it('rejects promise and does not throw when field is missing', function (done) {
@@ -1393,7 +1303,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
 
       it('rejects promise and does not throw when fee exceeds maxFeeXRP', function (done) {
@@ -1427,7 +1337,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
 
       it('preparePayment - XRP to XRP no partial', function (done) {
@@ -1442,7 +1352,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
   
       it('preparePayment - address must match payment.source.address', function (done) {
@@ -1457,7 +1367,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
   
       it('preparePayment - wrong amount', function (done) {
@@ -1472,7 +1382,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
   
       it('preparePayment - throws when fee exceeds 2 XRP', function (done) {
@@ -1492,7 +1402,7 @@ describe('RippleAPI', function () {
           }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
         } catch (err) {
           done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-        };
+        }
       });
     });
 
@@ -1581,7 +1491,7 @@ describe('RippleAPI', function () {
   });
 
   it('prepareOrder - invalid', function (done) {
-    const request = requests.prepareOrder.sell;
+    const request = Object.assign({}, requests.prepareOrder.sell);
     delete request.direction; // Make invalid
     try {
       this.api.prepareOrder(address, request, instructionsWithMaxLedgerVersionOffset).then(prepared => {
@@ -1593,7 +1503,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareOrderCancellation', function () {
@@ -1620,7 +1530,7 @@ describe('RippleAPI', function () {
   });
 
   it('prepareOrderCancellation - invalid', function (done) {
-    const request = requests.prepareOrderCancellation.withMemos;
+    const request = Object.assign({}, requests.prepareOrderCancellation.withMemos);
     delete request.orderSequence; // Make invalid
     try {
       this.api.prepareOrderCancellation(address, request).then(prepared => {
@@ -1632,7 +1542,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareTrustline - simple', function () {
@@ -1654,7 +1564,7 @@ describe('RippleAPI', function () {
   });
 
   it('prepareTrustline - invalid', function (done) {
-    const trustline = requests.prepareTrustline.complex;
+    const trustline = Object.assign({}, requests.prepareTrustline.complex);
     delete trustline.limit; // Make invalid
     try {
       this.api.prepareTrustline(
@@ -1667,160 +1577,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
-  });
-
-  it('prepareSettings', function () {
-    return this.api.prepareSettings(
-      address, requests.prepareSettings.domain, instructionsWithMaxLedgerVersionOffset).then(
-        _.partial(checkResult, responses.prepareSettings.flags, 'prepare'));
-  });
-
-  it('prepareSettings - no maxLedgerVersion', function () {
-    return this.api.prepareSettings(
-      address, requests.prepareSettings.domain, { maxLedgerVersion: null }).then(
-        _.partial(checkResult, responses.prepareSettings.noMaxLedgerVersion,
-          'prepare'));
-  });
-
-  it('prepareSettings - no instructions', function () {
-    return this.api.prepareSettings(
-      address, requests.prepareSettings.domain).then(
-        _.partial(
-          checkResult,
-          responses.prepareSettings.noInstructions,
-          'prepare'));
-  });
-
-  it('prepareSettings - regularKey', function () {
-    const regularKey = { regularKey: 'rAR8rR8sUkBoCZFawhkWzY4Y5YoyuznwD' };
-    return this.api.prepareSettings(address, regularKey, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.regularKey, 'prepare'));
-  });
-
-  it('prepareSettings - remove regularKey', function () {
-    const regularKey = { regularKey: null };
-    return this.api.prepareSettings(address, regularKey, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.removeRegularKey,
-        'prepare'));
-  });
-
-  it('prepareSettings - flag set', function () {
-    const settings = { requireDestinationTag: true };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.flagSet, 'prepare'));
-  });
-
-  it('prepareSettings - flag clear', function () {
-    const settings = { requireDestinationTag: false };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.flagClear, 'prepare'));
-  });
-
-  it('prepareSettings - set depositAuth flag', function () {
-    const settings = { depositAuth: true };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.flagSetDepositAuth, 'prepare'));
-  });
-
-  it('prepareSettings - clear depositAuth flag', function () {
-    const settings = { depositAuth: false };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.flagClearDepositAuth, 'prepare'));
-  });
-
-  it('prepareSettings - integer field clear', function () {
-    const settings = { transferRate: null };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset)
-      .then(data => {
-        assert(data);
-        assert.strictEqual(JSON.parse(data.txJSON).TransferRate, 0);
-      });
-  });
-
-  it('prepareSettings - set transferRate', function () {
-    const settings = { transferRate: 1 };
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.setTransferRate,
-        'prepare'));
-  });
-
-  it('prepareSettings - set signers', function () {
-    const settings = requests.prepareSettings.signers.normal;
-    return this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(
-      _.partial(checkResult, responses.prepareSettings.signers,
-        'prepare'));
-  });
-
-  it('prepareSettings - signers no threshold', function (done) {
-    const settings = requests.prepareSettings.signers.noThreshold;
-    try {
-      this.api.prepareSettings(address, settings, instructionsWithMaxLedgerVersionOffset).then(prepared => {
-        done(new Error('Expected method to reject. Prepared transaction: ' + JSON.stringify(prepared)));
-      }).catch(err => {
-        assert.strictEqual(err.name, 'ValidationError');
-        assert.strictEqual(err.message, 'instance.settings.signers requires property "threshold"');
-        done();
-      }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
-    } catch (err) {
-      done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
-  });
-
-  it('prepareSettings - signers no weights', function () {
-    const settings = requests.prepareSettings.signers.noWeights;
-    const localInstructions = _.defaults({
-      signersCount: 1
-    }, instructionsWithMaxLedgerVersionOffset);
-    return this.api.prepareSettings(
-      address, settings, localInstructions).then(
-        _.partial(checkResult, responses.prepareSettings.noWeights,
-          'prepare'));
-  });
-
-  it('prepareSettings - fee for multisign', function () {
-    const localInstructions = _.defaults({
-      signersCount: 4
-    }, instructionsWithMaxLedgerVersionOffset);
-    return this.api.prepareSettings(
-      address, requests.prepareSettings.domain, localInstructions).then(
-        _.partial(checkResult, responses.prepareSettings.flagsMultisign,
-          'prepare'));
-  });
-
-  it('prepareSettings - no signer list', function () {
-    const settings = requests.prepareSettings.noSignerEntries;
-    const localInstructions = _.defaults({
-      signersCount: 1
-    }, instructionsWithMaxLedgerVersionOffset);
-    return this.api.prepareSettings(
-      address, settings, localInstructions).then(
-        _.partial(checkResult, responses.prepareSettings.noSignerList,
-          'prepare'));
-  });
-
-  it('prepareSettings - invalid', function (done) {
-    // domain must be a string
-    const settings = Object.assign({},
-      requests.prepareSettings.domain,
-      {domain: 123});
-
-    const localInstructions = _.defaults({
-      signersCount: 4
-    }, instructionsWithMaxLedgerVersionOffset);
-
-    try {
-      this.api.prepareSettings(
-        address, settings, localInstructions).then(prepared => {
-        done(new Error('Expected method to reject. Prepared transaction: ' + JSON.stringify(prepared)));
-      }).catch(err => {
-        assert.strictEqual(err.name, 'ValidationError');
-        assert.strictEqual(err.message, 'instance.settings.domain is not of a type(s) string');
-        done();
-      }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
-    } catch (err) {
-      done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareEscrowCreation', function () {
@@ -1855,7 +1612,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareEscrowExecution', function () {
@@ -1888,7 +1645,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareEscrowExecution - no fulfillment', function (done) {
@@ -1903,7 +1660,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('prepareEscrowCancellation', function () {
@@ -2507,7 +2264,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('rejects Promise on preparePaymentChannelClaim with no signature', function (done) {
@@ -2522,7 +2279,7 @@ describe('RippleAPI', function () {
       }).catch(done); // Finish test with assertion failure immediately instead of waiting for timeout.
     } catch (err) {
       done(new Error('Expected method to reject, but method threw. Thrown: ' + err));
-    };
+    }
   });
 
   it('sign', function () {
@@ -2958,7 +2715,7 @@ describe('RippleAPI', function () {
       const options = {
         includeRawTransaction: true
       }
-      const expected = responses.getTransaction.settings
+      const expected = Object.assign({}, responses.getTransaction.settings) // Avoid mutating test fixture
       expected.rawTransaction = "{\"Account\":\"rLVKsA4F9iJBbA6rX2x4wCmkj6drgtqpQe\",\"Fee\":\"10\",\"Flags\":2147483648,\"Sequence\":1,\"SetFlag\":2,\"SigningPubKey\":\"03EA3ADCA632F125EC2CC4F7F6A82DE0DCE2B65290CAC1F22242C5163F0DA9652D\",\"TransactionType\":\"AccountSet\",\"TxnSignature\":\"3045022100DE8B666B1A31EA65011B0F32130AB91A5747E32FA49B3054CEE8E8362DBAB98A022040CF0CF254677A8E5CD04C59CA2ED7F6F15F7E184641BAE169C561650967B226\",\"date\":460832270,\"hash\":\"4FB3ADF22F3C605E23FAEFAA185F3BD763C4692CAC490D9819D117CD33BFAA1B\",\"inLedger\":8206418,\"ledger_index\":8206418,\"meta\":{\"AffectedNodes\":[{\"ModifiedNode\":{\"FinalFields\":{\"Account\":\"rLVKsA4F9iJBbA6rX2x4wCmkj6drgtqpQe\",\"Balance\":\"29999990\",\"Flags\":786432,\"OwnerCount\":0,\"Sequence\":2},\"LedgerEntryType\":\"AccountRoot\",\"LedgerIndex\":\"3F5072C4875F32ED770DAF3610A716600ED7C7BB0348FADC7A98E011BB2CD36F\",\"PreviousFields\":{\"Balance\":\"30000000\",\"Flags\":4194304,\"Sequence\":1},\"PreviousTxnID\":\"3FB0350A3742BBCC0D8AA3C5247D1AEC01177D0A24D9C34762BAA2FEA8AD88B3\",\"PreviousTxnLgrSeq\":8206397}}],\"TransactionIndex\":5,\"TransactionResult\":\"tesSUCCESS\"},\"validated\":true}"
       return this.api.getTransaction(hash, options).then(
         _.partial(checkResult, expected,
@@ -3130,14 +2887,14 @@ describe('RippleAPI', function () {
       });
     });
 
-    it('getTransaction - ledger_index not found', function () {
+    it('getTransaction - transaction not validated', function () {
       const hash =
         '4FB3ADF22F3C605E23FAEFAA185F3BD763C4692CAC490D9819D117CD33BFAA11';
       return this.api.getTransaction(hash).then(() => {
         assert(false, 'Should throw NotFoundError');
       }).catch(error => {
         assert(error instanceof this.api.errors.NotFoundError);
-        assert(error.message.indexOf('ledger_index') !== -1);
+        assert(error.message.indexOf('Transaction has not been validated yet') !== -1);
       });
     });
 
@@ -3464,6 +3221,23 @@ describe('RippleAPI', function () {
     }, this.api.errors.UnexpectedError);
   });
 
+  it('generateXAddress', function () {
+    function random() {
+      return _.fill(Array(16), 0);
+    }
+    assert.deepEqual(this.api.generateXAddress({ entropy: random() }),
+      responses.generateXAddress);
+  });
+
+  it('generateXAddress invalid', function () {
+    assert.throws(() => {
+      function random() {
+        return _.fill(Array(1), 0);
+      }
+      this.api.generateXAddress({ entropy: random() });
+    }, this.api.errors.UnexpectedError);
+  });
+
   it('getSettings', function () {
     return this.api.getSettings(address).then(
       _.partial(checkResult, responses.getSettings, 'getSettings'));
@@ -3576,9 +3350,9 @@ describe('RippleAPI', function () {
             taker: address
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         assert.deepEqual(orderbook, responses.getOrderbook.normal);
       });
@@ -3612,9 +3386,9 @@ describe('RippleAPI', function () {
             taker: address
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         assert.deepEqual(orderbook, responses.getOrderbook.withXRP);
       });
@@ -3642,7 +3416,7 @@ describe('RippleAPI', function () {
           .dividedBy(order.specification.quantity.value)
           .toString();
         }
-        assert((new BigNumber(rate)).greaterThanOrEqualTo(previousRate),
+        assert((new BigNumber(rate)).isGreaterThanOrEqualTo(previousRate),
           'Rates must be sorted from least to greatest: ' +
           rate + ' should be >= ' + previousRate);
         previousRate = rate;
@@ -3680,9 +3454,9 @@ describe('RippleAPI', function () {
             taker: myAddress
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         assert.deepStrictEqual([], orderbook.bids);
         return checkSortingOfOrders(orderbook.asks);
@@ -3713,9 +3487,9 @@ describe('RippleAPI', function () {
             taker: myAddress
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         return checkSortingOfOrders(orderbook.bids) && checkSortingOfOrders(orderbook.asks);
       });
@@ -3750,9 +3524,9 @@ describe('RippleAPI', function () {
             taker: address
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         
         const bidRates = orderbook.bids.map(bid => bid.properties.makerExchangeRate);
@@ -3794,9 +3568,9 @@ describe('RippleAPI', function () {
             taker: address
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         
         const orders = _.flatten([orderbook.bids, orderbook.asks]);
@@ -3841,9 +3615,9 @@ describe('RippleAPI', function () {
             taker: address
           })
         ]
-      ).then((directOfferResults, reverseOfferResults) => {
-        const directOffers = (directOfferResults ? directOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
-        const reverseOffers = (reverseOfferResults ? reverseOfferResults : []).reduce((acc, res) => acc.concat(res.offers), [])
+      ).then(([directOfferResults, reverseOfferResults]) => {
+        const directOffers = (directOfferResults ? directOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
+        const reverseOffers = (reverseOfferResults ? reverseOfferResults.offers : []).reduce((acc, res) => acc.concat(res), [])
         const orderbook = RippleAPI.formatBidsAndAsks(orderbookInfo, [...directOffers, ...reverseOffers]);
         
         assert(
@@ -3900,7 +3674,7 @@ describe('RippleAPI', function () {
           .dividedBy(order.specification.quantity.value)
           .toString();
         }
-        assert((new BigNumber(rate)).greaterThanOrEqualTo(previousRate),
+        assert((new BigNumber(rate)).isGreaterThanOrEqualTo(previousRate),
           'Rates must be sorted from least to greatest: ' +
           rate + ' should be >= ' + previousRate);
         previousRate = rate;
@@ -4195,145 +3969,6 @@ describe('RippleAPI', function () {
     });
   });
 
-  it('getPaths', function () {
-    return this.api.getPaths(requests.getPaths.normal).then(
-      _.partial(checkResult, responses.getPaths.XrpToUsd, 'getPaths'));
-  });
-
-  it('getPaths - result path has source_amount in drops', function () {
-    return this.api.getPaths({
-      source: {
-        address: 'rB2NTuTTS3eNCsWxZYzJ4wqRqxNLZqA9Vx',
-        amount: {
-          value: this.api.dropsToXrp(1000000),
-          currency: 'XRP'
-        }
-      },
-      destination: {
-        address: 'rhpJkBfZGQyT1xeDbwtKEuSrSXw3QZSAy5',
-        amount: {
-          counterparty: 'rGpGaj4sxEZGenW1prqER25EUi7x4fqK9u',
-          currency: 'EUR'
-        }
-      }
-    }).then(
-      _.partial(checkResult, [
-        {
-          "source": {
-            "address": "rB2NTuTTS3eNCsWxZYzJ4wqRqxNLZqA9Vx",
-            "amount": {
-              "currency": "XRP",
-              "value": "1"
-            }
-          },
-          "destination": {
-            "address": "rhpJkBfZGQyT1xeDbwtKEuSrSXw3QZSAy5",
-            "minAmount": {
-              "currency": "EUR",
-              "value": "1",
-              "counterparty": "rGpGaj4sxEZGenW1prqER25EUi7x4fqK9u"
-            }
-          },
-          "paths": "[[{\"currency\":\"USD\",\"issuer\":\"rGpGaj4sxEZGenW1prqER25EUi7x4fqK9u\"},{\"currency\":\"EUR\",\"issuer\":\"rGpGaj4sxEZGenW1prqER25EUi7x4fqK9u\"}]]"
-        }
-      ], 'getPaths'));
-  });
-
-  it('getPaths - queuing', function () {
-    return Promise.all([
-      this.api.getPaths(requests.getPaths.normal),
-      this.api.getPaths(requests.getPaths.UsdToUsd),
-      this.api.getPaths(requests.getPaths.XrpToXrp)
-    ]).then(results => {
-      checkResult(responses.getPaths.XrpToUsd, 'getPaths', results[0]);
-      checkResult(responses.getPaths.UsdToUsd, 'getPaths', results[1]);
-      checkResult(responses.getPaths.XrpToXrp, 'getPaths', results[2]);
-    });
-  });
-
-  // @TODO
-  // need decide what to do with currencies/XRP:
-  // if add 'XRP' in currencies, then there will be exception in
-  // xrpToDrops function (called from toRippledAmount)
-  it('getPaths USD 2 USD', function () {
-    return this.api.getPaths(requests.getPaths.UsdToUsd).then(
-      _.partial(checkResult, responses.getPaths.UsdToUsd, 'getPaths'));
-  });
-
-  it('getPaths XRP 2 XRP', function () {
-    return this.api.getPaths(requests.getPaths.XrpToXrp).then(
-      _.partial(checkResult, responses.getPaths.XrpToXrp, 'getPaths'));
-  });
-
-  it('getPaths - source with issuer', function () {
-    return this.api.getPaths(requests.getPaths.issuer).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-  it('getPaths - XRP 2 XRP - not enough', function () {
-    return this.api.getPaths(requests.getPaths.XrpToXrpNotEnough).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-  it('getPaths - invalid PathFind', function () {
-    assert.throws(() => {
-      this.api.getPaths(requests.getPaths.invalid);
-    }, /Cannot specify both source.amount/);
-  });
-
-  it('getPaths - does not accept currency', function () {
-    return this.api.getPaths(requests.getPaths.NotAcceptCurrency).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-  it('getPaths - no paths', function () {
-    return this.api.getPaths(requests.getPaths.NoPaths).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-  it('getPaths - no paths source amount', function () {
-    return this.api.getPaths(requests.getPaths.NoPathsSource).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-
-  it('getPaths - no paths with source currencies', function () {
-    const pathfind = requests.getPaths.NoPathsWithCurrencies;
-    return this.api.getPaths(pathfind).then(() => {
-      assert(false, 'Should throw NotFoundError');
-    }).catch(error => {
-      assert(error instanceof this.api.errors.NotFoundError);
-    });
-  });
-
-  it('getPaths - error: srcActNotFound', function () {
-    const pathfind = _.assign({}, requests.getPaths.normal,
-      { source: { address: addresses.NOTFOUND } });
-    return this.api.getPaths(pathfind).catch(error => {
-      assert(error instanceof this.api.errors.RippleError);
-    });
-  });
-
-  it('getPaths - send all', function () {
-    return this.api.getPaths(requests.getPaths.sendAll).then(
-      _.partial(checkResult, responses.getPaths.sendAll, 'getPaths'));
-  });
-
   it('getLedgerVersion', function (done) {
     this.api.getLedgerVersion().then(ver => {
       assert.strictEqual(ver, 8819951);
@@ -4353,84 +3988,6 @@ describe('RippleAPI', function () {
       assert.strictEqual(fee, 10);
       done();
     }, done);
-  });
-
-  it('getLedger', function () {
-    return this.api.getLedger().then(
-      _.partial(checkResult, responses.getLedger.header, 'getLedger'));
-  });
-
-  it('getLedger - by hash', function () {
-    return this.api.getLedger({ ledgerHash: '15F20E5FA6EA9770BBFFDBD62787400960B04BE32803B20C41F117F41C13830D' }).then(
-      _.partial(checkResult, responses.getLedger.headerByHash, 'getLedger'));
-  });
-
-  it('getLedger - future ledger version', function () {
-    return this.api.getLedger({ ledgerVersion: 14661789 }).then(response => {
-      assert(response)
-    })
-  });
-
-  it('getLedger - with state as hashes', function () {
-    const request = {
-      includeTransactions: true,
-      includeAllData: false,
-      includeState: true,
-      ledgerVersion: 6
-    };
-    return this.api.getLedger(request).then(
-      _.partial(checkResult, responses.getLedger.withStateAsHashes,
-        'getLedger'));
-  });
-
-  it('getLedger - with settings transaction', function () {
-    const request = {
-      includeTransactions: true,
-      includeAllData: true,
-      ledgerVersion: 4181996
-    };
-    return this.api.getLedger(request).then(
-      _.partial(checkResult, responses.getLedger.withSettingsTx, 'getLedger'));
-  });
-
-  it('getLedger - with partial payment', function () {
-    const request = {
-      includeTransactions: true,
-      includeAllData: true,
-      ledgerVersion: 22420574
-    };
-    return this.api.getLedger(request).then(
-      _.partial(checkResult, responses.getLedger.withPartial, 'getLedger'));
-  });
-
-  it('getLedger - pre 2014 with partial payment', function () {
-    const request = {
-      includeTransactions: true,
-      includeAllData: true,
-      ledgerVersion: 100001
-    };
-    return this.api.getLedger(request).then(
-      _.partial(checkResult,
-        responses.getLedger.pre2014withPartial,
-        'getLedger'));
-  });
-
-  it('getLedger - full, then computeLedgerHash', function () {
-    const request = {
-      includeTransactions: true,
-      includeState: true,
-      includeAllData: true,
-      ledgerVersion: 38129
-    };
-    return this.api.getLedger(request).then(
-      _.partial(checkResult, responses.getLedger.full, 'getLedger'))
-      .then(response => {
-        const ledger = _.assign({}, response,
-          { parentCloseTime: response.closeTime });
-        const hash = this.api.computeLedgerHash(ledger, {computeTreeHashes: true});
-        assert.strictEqual(hash,
-          'E6DB7365949BF9814D76BCC730B01818EB9136A89DB224F3F9F5AAE4569D758E');
-      });
   });
 
   it('computeLedgerHash - given corrupt data - should fail', function () {
@@ -4548,8 +4105,7 @@ describe('RippleAPI', function () {
             'D9ABF622DA26EEEE48203085D4BC23B0F77DC6F8724AC33D975DA3CA492D2E44'
         });
         assert.throws(() => {
-          const hash = this.api.computeLedgerHash(ledger);
-          unused(hash);
+          this.api.computeLedgerHash(ledger);
         }, /does not match computed hash of state/);
       });
   });
@@ -4576,20 +4132,21 @@ describe('RippleAPI', function () {
 
   it('ledger utils - renameCounterpartyToIssuerInOrder', function () {
     const order = {
-      taker_gets: { counterparty: '1' },
-      taker_pays: { counterparty: '1' }
+      taker_gets: { counterparty: '1', currency: 'XRP' },
+      taker_pays: { counterparty: '1', currency: 'XRP' }
     };
     const expected = {
-      taker_gets: { issuer: '1' },
-      taker_pays: { issuer: '1' }
+      taker_gets: { issuer: '1', currency: 'XRP' },
+      taker_pays: { issuer: '1', currency: 'XRP' }
     };
     assert.deepEqual(utils.renameCounterpartyToIssuerInOrder(order), expected);
   });
 
   it('ledger utils - compareTransactions', function () {
+    // @ts-ignore
     assert.strictEqual(utils.compareTransactions({}, {}), 0);
-    let first = { outcome: { ledgerVersion: 1, indexInLedger: 100 } };
-    let second = { outcome: { ledgerVersion: 1, indexInLedger: 200 } };
+    let first: any = { outcome: { ledgerVersion: 1, indexInLedger: 100 } };
+    let second: any = { outcome: { ledgerVersion: 1, indexInLedger: 200 } };
 
     assert.strictEqual(utils.compareTransactions(first, second), -1);
 
@@ -4605,13 +4162,13 @@ describe('RippleAPI', function () {
   });
 
   it('ledger utils - getRecursive', function () {
-    function getter(marker, limit) {
-      return new Promise((resolve, reject) => {
-        if (marker === undefined) {
-          resolve({ marker: 'A', limit: limit, results: [1] });
-        } else {
+    function getter(marker) {
+      return new Promise<RecursiveData>((resolve, reject) => {
+        if (marker !== undefined) {
           reject(new Error());
+          return;
         }
+        resolve({ marker: 'A', results: [1] });
       });
     }
     return utils.getRecursive(getter, 10).then(() => {
@@ -4753,22 +4310,26 @@ describe('RippleAPI - offline', function () {
     assert.throws(() => api.computeLedgerHash(header));
   });
 
-  /* eslint-disable no-unused-vars */
   it('RippleAPI - implicit server port', function () {
-    const api = new RippleAPI({ server: 'wss://s1.ripple.com' });
+    new RippleAPI({ server: 'wss://s1.ripple.com' });
   });
-  /* eslint-enable no-unused-vars */
+
   it('RippleAPI invalid options', function () {
-    assert.throws(() => new RippleAPI({ invalid: true }));
+    assert.throws(() => new RippleAPI({ invalid: true } as any));
   });
 
   it('RippleAPI valid options', function () {
     const api = new RippleAPI({ server: 'wss://s:1' });
-    assert.deepEqual(api.connection._url, 'wss://s:1');
+    const privateConnectionUrl = (api.connection as any)._url;
+    assert.deepEqual(privateConnectionUrl, 'wss://s:1');
   });
 
   it('RippleAPI invalid server uri', function () {
     assert.throws(() => new RippleAPI({ server: 'wss//s:1' }));
   });
 
+  xit('RippleAPI connect() times out after 2 seconds', function () {
+    // TODO: Use a timer mock like https://jestjs.io/docs/en/timer-mocks
+    //       to test that connect() times out after 2 seconds.
+  });
 });

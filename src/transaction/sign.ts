@@ -1,13 +1,13 @@
-import * as isEqual from '../common/js/lodash.isequal'
+import isEqual from 'lodash.isequal'
 import * as utils from './utils'
-import keypairs = require('ripple-keypairs')
-import binaryCodec = require('ripple-binary-codec')
-import {computeBinaryTransactionHash} from 'ripple-hashes'
-import {SignOptions, KeyPair} from './types'
+import keypairs from 'ripple-keypairs'
+import binaryCodec from 'ripple-binary-codec'
+import {computeBinaryTransactionHash} from '../common/hashes'
+import {SignOptions, KeyPair, TransactionJSON} from './types'
 import {BigNumber} from 'bignumber.js'
 import {xrpToDrops} from '../common'
 import {RippleAPI} from '..'
-const validate = utils.common.validate
+const validate = utils.common.validate 
 
 function computeSignature(tx: object, privateKey: string, signAs?: string) {
   const signingData = signAs
@@ -131,11 +131,11 @@ function objectDiff(a: object, b: object): object {
  *  and verify that it matches the transaction prior to signing.
  *
  *  @param {string} serialized A signed and serialized transaction.
- *  @param {utils.TransactionJSON} tx The transaction prior to signing.
+ *  @param {TransactionJSON} tx The transaction prior to signing.
  *
  *  @returns {void} This method does not return a value, but throws an error if the check fails.
  */
-function checkTxSerialization(serialized: string, tx: utils.TransactionJSON): void {
+function checkTxSerialization(serialized: string, tx: TransactionJSON): void {
   // Decode the serialized transaction:
   const decoded = binaryCodec.decode(serialized)
 
@@ -183,7 +183,7 @@ function checkTxSerialization(serialized: string, tx: utils.TransactionJSON): vo
 function checkFee(api: RippleAPI, txFee: string): void {
   const fee = new BigNumber(txFee)
   const maxFeeDrops = xrpToDrops(api._maxFeeXRP)
-  if (fee.greaterThan(maxFeeDrops)) {
+  if (fee.isGreaterThan(maxFeeDrops)) {
     throw new utils.common.errors.ValidationError(
       `"Fee" should not exceed "${maxFeeDrops}". ` +
       'To use a higher fee, set `maxFeeXRP` in the RippleAPI constructor.'

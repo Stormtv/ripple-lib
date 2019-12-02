@@ -4,13 +4,13 @@ import * as utils from './utils'
 const validate = utils.common.validate
 const AccountFlagIndices = utils.common.constants.AccountFlagIndices
 const AccountFields = utils.common.constants.AccountFields
-import {Instructions, Prepare, SettingsTransaction} from './types'
+import {Instructions, Prepare, SettingsTransaction, TransactionJSON} from './types'
 import {FormattedSettings, WeightedSigner} from '../common/types/objects'
 import {RippleAPI} from '..'
 
-function setTransactionFlags(txJSON: utils.TransactionJSON, values: FormattedSettings) {
+function setTransactionFlags(txJSON: TransactionJSON, values: FormattedSettings) {
   const keys = Object.keys(values)
-  assert(keys.length === 1, 'ERROR: can only set one setting per transaction')
+  assert.ok(keys.length === 1, 'ERROR: can only set one setting per transaction')
   const flagName = keys[0]
   const value = values[flagName]
   const index = AccountFlagIndices[flagName]
@@ -24,7 +24,7 @@ function setTransactionFlags(txJSON: utils.TransactionJSON, values: FormattedSet
 }
 
 // Sets `null` fields to their `default`.
-function setTransactionFields(txJSON: utils.TransactionJSON, input: FormattedSettings) {
+function setTransactionFields(txJSON: TransactionJSON, input: FormattedSettings) {
   const fieldSchema = AccountFields
   for (const fieldName in fieldSchema) {
     const field = fieldSchema[fieldName]
@@ -62,7 +62,7 @@ function setTransactionFields(txJSON: utils.TransactionJSON, input: FormattedSet
  */
 
 function convertTransferRate(transferRate: number): number {
-  return (new BigNumber(transferRate)).shift(9).toNumber()
+  return (new BigNumber(transferRate)).shiftedBy(9).toNumber()
 }
 
 function formatSignerEntry(signer: WeightedSigner): object {

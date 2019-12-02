@@ -1,5 +1,61 @@
 # ripple-lib Release History
 
+## 1.4.2 (2019-11-14)
+
+* Add support for tick size (#1090) (thanks @RareData)
+* Update email hash default to allow proper clearing (#1089) (thanks @RareData)
+* Fix Unhandled Promise Rejection Warning on message `_send`
+  * Add an immediate catch to the `_send` promise passed to `_whenReady` in case there is rejection before async handlers are added (#1092) (thanks @nickewansmith)
+* Docs improvements
+  * Add XRP Toolkit reference (#1088)
+* Internal improvements
+  * Add a prettier config
+  * Update Node.js Testing Versions (#1085)
+    * Testing matrix based on: https://nodejs.org/en/about/releases/
+      - Node 11 is no longer supported (not LTS)
+      - Node 12 added (active LTS)
+      - Node 13 added ("current" release)
+
+## 1.4.1 (2019-11-06)
+
+* Compatibility: Change TypeScript compile target back to `es6` (#1071)
+  * WARNING: This allows for the use of Node v6, which is no longer supported by Node.js, as it was end-of-life'd in April 2019
+  * We recommend updating to Node v8/v10 ASAP in order to get security updates and fixes from the Node.js team
+  * We are not actively running tests against Node v6 (ref #1076)
+* Docs: `getAccountObjects` doc fix
+* Dependencies:
+  * Update `bignumber.js`
+  * Update `ripple-keypairs`
+  * Update `ws`
+* Build process: Update `webpack` flow
+
+## 1.4.0 (2019-10-28)
+
+* Unref timer so it does not hang the Node.js process
+* Add a 2-second timeout for connect()
+* Improve getTransaction() error when tx has not been validated yet
+* Add support for the new X-address format
+* Fix error in Safari, Chrome 78, Firefox 70
+* Some error messages have changed slightly. For example:
+  * `-instance.Account is not of a type(s) string,instance.Account does not conform to the "address" format`
+  * `+instance.Account is not of a type(s) string,instance.Account is not exactly one from <xAddress>,<classicAddress>`
+
+### Internal improvements
+
+* Reduce dependency size
+* Move tests to TypeScript
+* Replace tslint with eslint
+* Update https-proxy-agent
+* Add tests
+
+## 1.3.4 (2019-10-18)
+
+* Update ripple-lib-transactionparser
+* Improve error message when signing fails (e.g. due to trailing zeros)
+* Integrate ripple-hashes (in TypeScript with improved naming and docs)
+* Add multi-signing example to sign() method docs
+* Update TypeScript
+
 ## 1.3.3 (2019-09-10)
 
 * Expand node version compatibility to support Node.js 12 ([ripple-binary-codec#32](https://github.com/ripple/ripple-binary-codec/issues/32))
