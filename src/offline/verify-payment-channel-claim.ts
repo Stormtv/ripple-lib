@@ -4,7 +4,7 @@ import {validate, xrpToDrops} from '../common'
 
 function verifyPaymentChannelClaim(channel: string, amount: string,
   signature: string, publicKey: string
-): string {
+): boolean {
   validate.verifyPaymentChannelClaim({channel, amount, signature, publicKey})
 
   const signingData = binary.encodeForSigningClaim({

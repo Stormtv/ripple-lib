@@ -3208,7 +3208,7 @@ describe('RippleAPI', function () {
     function random() {
       return _.fill(Array(16), 0);
     }
-    assert.deepEqual(this.api.generateAddress({ entropy: random() }),
+    assert.deepEqual(this.api.generateAddress({ entropy: random(), algorithm: 'secp256k1' }),
       responses.generateAddress);
   });
 
@@ -3225,7 +3225,7 @@ describe('RippleAPI', function () {
     function random() {
       return _.fill(Array(16), 0);
     }
-    assert.deepEqual(this.api.generateXAddress({ entropy: random() }),
+    assert.deepEqual(this.api.generateXAddress({ entropy: random(), algorithm: 'secp256k1' }),
       responses.generateXAddress);
   });
 
