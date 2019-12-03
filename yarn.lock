@@ -4003,7 +4003,7 @@ ripple-binary-codec@^0.2.4:
 
 "ripple-keypairs@github:stormtv/ripple-keypairs#master":
   version "1.0.0-beta.0"
-  resolved "https://codeload.github.com/stormtv/ripple-keypairs/tar.gz/40f9f87593e466449e87a3267e9308fda9c04f3c"
+  resolved "https://codeload.github.com/stormtv/ripple-keypairs/tar.gz/952d422473c50584328f6c1734101dbefa295201"
   dependencies:
     bn.js "^5.0.0"
     elliptic "^6.5.2"
